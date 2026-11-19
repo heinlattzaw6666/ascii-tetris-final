@@ -39,6 +39,8 @@ class Tetris:
         self.lines = 0
         self.game_over = False
         self.paused = False
+        self.hold_kind = None     
+        self.can_hold = True
         self.next_kind = self.rng.choice(list(SHAPES))
         self.spawn()
 
@@ -47,6 +49,7 @@ class Tetris:
         self.next_kind = self.rng.choice(list(SHAPES))
         self.cells = list(SHAPES[self.kind])
         self.x, self.y = COLS // 2 - 2, 0
+        self.can_hold = True
         if not self.can_place(self.cells, self.x, self.y):
             self.game_over = True
 
@@ -90,6 +93,19 @@ class Tetris:
             self.score += 1
         self.lock()
 
+    def hold_piece(self):
+        if self.game_over or self.paused or not self.can_hold:
+            return False
+        if self.hold_kind is None:
+            self.hold_kind = self.kind
+            self.spawn()
+        else:
+            self.kind, self.hold_kind = self.hold_kind, self.kind
+            self.cells = list(SHAPES[self.kind])
+            self.x, self.y = COLS // 2 - 2, 0
+        self.can_hold = False
+        return True
+
     def lock(self):
         for dx, dy in self.cells:
             px, py = self.x + dx, self.y + dy
@@ -120,9 +136,10 @@ class Tetris:
                 px, py = self.x + dx, self.y + dy
                 if 0 <= py < ROWS and 0 <= px < COLS:
                     screen[py][px] = self.kind
-        out = ['=== ASCII TETRIS ===', f'SCORE {self.score}    LINES {self.lines}    NEXT {self.next_kind}', '+' + '--' * COLS + '+']
+        hold_str = self.hold_kind if self.hold_kind else '-'
+        out = ['=== ASCII TETRIS ===', f'SCORE {self.score}    LINES {self.lines}    NEXT {self.next_kind}    HOLD {hold_str}', '+' + '--' * COLS + '+']
         out += ['|' + ''.join('[]' if c != ' ' else '  ' for c in row) + '|' for row in screen]
-        out += ['+' + '--' * COLS + '+', 'A/D:移動 W:回転 S:加速 Space:落下 P:停止 R:再開 Q:終了']
+        out += ['+' + '--' * COLS + '+', 'A/D:移動 W:回転 S:加速 Space:落下 C:ホールド P:停止 R:再開 Q:終了']
         if self.paused:
             out.append('--- PAUSED ---')
         if self.game_over:
@@ -156,6 +173,8 @@ def main():
                     game.move(0, 1)
                 elif key == ' ':
                     game.hard_drop()
+                elif key == 'c':       
+                    game.hold_piece()
             now = time.monotonic()
             if not game.paused and not game.game_over and now - last_fall >= game.fall_interval:
                 game.move(0, 1)
