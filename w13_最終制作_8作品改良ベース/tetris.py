@@ -105,7 +105,13 @@ class Tetris:
             self.x, self.y = COLS // 2 - 2, 0
         self.can_hold = False
         return True
-
+    
+    def get_ghost_y(self): 
+        ghost_y = self.y
+        while self.can_place(self.cells, self.x, ghost_y + 1):
+            ghost_y += 1
+        return ghost_y
+    
     def lock(self):
         for dx, dy in self.cells:
             px, py = self.x + dx, self.y + dy
@@ -132,13 +138,18 @@ class Tetris:
     def render(self):
         screen = [row[:] for row in self.board]
         if not self.game_over:
+            ghost_y = self.get_ghost_y()  
+            for dx, dy in self.cells:     
+                px, py = self.x + dx, ghost_y + dy
+                if 0 <= py < ROWS and 0 <= px < COLS:
+                    screen[py][px] = 'G'
             for dx, dy in self.cells:
                 px, py = self.x + dx, self.y + dy
                 if 0 <= py < ROWS and 0 <= px < COLS:
                     screen[py][px] = self.kind
         hold_str = self.hold_kind if self.hold_kind else '-'
         out = ['=== ASCII TETRIS ===', f'SCORE {self.score}    LINES {self.lines}    NEXT {self.next_kind}    HOLD {hold_str}', '+' + '--' * COLS + '+']
-        out += ['|' + ''.join('[]' if c != ' ' else '  ' for c in row) + '|' for row in screen]
+        out += ['|' + ''.join('::' if c == 'G' else ('[]' if c != ' ' else '  ') for c in row) + '|' for row in screen] 
         out += ['+' + '--' * COLS + '+', 'A/D:移動 W:回転 S:加速 Space:落下 C:ホールド P:停止 R:再開 Q:終了']
         if self.paused:
             out.append('--- PAUSED ---')
