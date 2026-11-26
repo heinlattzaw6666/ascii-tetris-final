@@ -16,6 +16,7 @@ import time
 from terminal_io import Terminal, paint
 
 COLS, ROWS = 10, 18
+LEVEL_STEP_SCORE = 500
 # 4x4以内の相対座標。T/J/L/S/Z/I/Oの7種類。
 SHAPES = {
     'I': [(0, 1), (1, 1), (2, 1), (3, 1)],
@@ -37,6 +38,9 @@ class Tetris:
         self.board = [[' ' for _ in range(COLS)] for _ in range(ROWS)]
         self.score = 0
         self.lines = 0
+        self.level = 1
+        self.next_level_score = LEVEL_STEP_SCORE
+        self.status_msg = ''
         self.game_over = False
         self.paused = False
         self.hold_kind = None     
@@ -91,7 +95,14 @@ class Tetris:
         while self.can_place(self.cells, self.x, self.y + 1):
             self.y += 1
             self.score += 1
+        self.check_level_up()
         self.lock()
+
+    def check_level_up(self):
+        while self.score >= self.next_level_score:
+            self.level += 1
+            self.next_level_score += LEVEL_STEP_SCORE
+            self.status_msg = f'★ LEVEL {self.level} UP! (Speed Up!) ★'
 
     def hold_piece(self):
         if self.game_over or self.paused or not self.can_hold:
@@ -128,6 +139,7 @@ class Tetris:
                 return
             self.board[py][px] = self.kind
         self.clear_lines()
+        self.check_level_up()
         self.spawn()
 
     def clear_lines(self):
@@ -136,12 +148,14 @@ class Tetris:
         if removed:
             self.board = [[' '] * COLS for _ in range(removed)] + remaining
             self.lines += removed
-            self.score += (0, 100, 300, 500, 800)[removed] * (1 + self.lines // 10)
+            gained = (0, 100, 300, 500, 800)[removed] * self.level
+            self.score += gained
+            self.check_level_up()
         return removed
 
     @property
     def fall_interval(self):
-        return max(0.10, 0.65 - (self.lines // 5) * 0.07)
+        return max(0.10, 0.65 - (self.level - 1) * 0.15)
 
     def render(self):
         screen = [row[:] for row in self.board]
@@ -158,20 +172,25 @@ class Tetris:
 
         hold_str = self.hold_kind if self.hold_kind else '-'
         next_view = self.format_mini_piece(self.next_kind)
+        remain_score = max(0, self.next_level_score - self.score)
 
         out = [
             '=== ASCII TETRIS ===',
-            f'SCORE {self.score}    LINES {self.lines}    HOLD {hold_str}',
+            f'LV {self.level}    SCORE {self.score}    LINES {self.lines}    HOLD {hold_str}',
             '+' + '--' * COLS + '+',
         ]
-        out += ['|' + ''.join('::' if c == 'G' else ('[]' if c != ' ' else '  ') for c in row) + '|' for row in screen] 
+        out += ['|' + ''.join('::' if c == 'G' else ('[]' if c != ' ' else '  ') for c in row) + '|' for row in screen]
         out += [
             '+' + '--' * COLS + '+',
             'A/D:移動 W:回転 S:加速 Space:落下 C:ホールド P:停止 R:再開 Q:終了',
             'Next Block:',
             f'  {next_view[0]}',
             f'  {next_view[1]}',
+            '------------------------------------',
+            f'Next Level (LV {self.level + 1}): あと {remain_score} pts',
         ]
+        if self.status_msg:
+            out.append(self.status_msg)
         if self.paused:
             out.append('--- PAUSED ---')
         if self.game_over:
